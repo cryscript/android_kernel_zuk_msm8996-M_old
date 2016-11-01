@@ -68,14 +68,14 @@
 #define MSMFB_OVERLAY_PREPARE		_IOWR(MSMFB_IOCTL_MAGIC, 169, \
 						struct mdp_overlay_list)
 #define MSMFB_LPM_ENABLE	_IOWR(MSMFB_IOCTL_MAGIC, 170, unsigned int)
-#define MSMFB_PANEL_EFFECT				_IOW(MSMFB_IOCTL_MAGIC, 180, struct hal_panel_ctrl_data)
-
 #define MSMFB_MDP_PP_GET_FEATURE_VERSION _IOWR(MSMFB_IOCTL_MAGIC, 171, \
 					      struct mdp_pp_feature_version)
 
 #define FB_TYPE_3D_PANEL 0x10101010
 #define MDP_IMGTYPE2_START 0x10000
 #define MSMFB_DRIVER_VERSION	0xF9E8D701
+/* Maximum number of formats supported by MDP*/
+#define MDP_IMGTYPE_END 0x100
 
 /* HW Revisions for different MDSS targets */
 #define MDSS_GET_MAJOR(rev)		((rev) >> 28)
@@ -112,6 +112,8 @@
 #define MDSS_MDP_HW_REV_114	MDSS_MDP_REV(1, 14, 0) /* 8937 v1.0 */
 #define MDSS_MDP_HW_REV_115	MDSS_MDP_REV(1, 15, 0) /* msmgold */
 #define MDSS_MDP_HW_REV_116	MDSS_MDP_REV(1, 16, 0) /* msmtitanium */
+#define MDSS_MDP_HW_REV_300	MDSS_MDP_REV(3, 0, 0)  /* msmcobalt */
+#define MDSS_MDP_HW_REV_301	MDSS_MDP_REV(3, 0, 1)  /* msmcobalt v1.0 */
 
 enum {
 	NOTIFY_UPDATE_INIT,
@@ -181,9 +183,39 @@ enum {
 	MDP_Y_CRCB_H2V2_VENUS,
 	MDP_IMGTYPE_LIMIT,
 	MDP_RGB_BORDERFILL,	/* border fill pipe */
+	MDP_XRGB_1555,
+	MDP_RGBX_5551,
+	MDP_XRGB_4444,
+	MDP_RGBX_4444,
+	MDP_ABGR_1555,
+	MDP_BGRA_5551,
+	MDP_XBGR_1555,
+	MDP_BGRX_5551,
+	MDP_ABGR_4444,
+	MDP_BGRA_4444,
+	MDP_XBGR_4444,
+	MDP_BGRX_4444,
+	MDP_ABGR_8888,
+	MDP_XBGR_8888,
+	MDP_RGBA_1010102,
+	MDP_ARGB_2101010,
+	MDP_RGBX_1010102,
+	MDP_XRGB_2101010,
+	MDP_BGRA_1010102,
+	MDP_ABGR_2101010,
+	MDP_BGRX_1010102,
+	MDP_XBGR_2101010,
+	MDP_RGBA_1010102_UBWC,
+	MDP_RGBX_1010102_UBWC,
+	MDP_Y_CBCR_H2V2_P010,
+	MDP_Y_CBCR_H2V2_TP10_UBWC,
+	MDP_CRYCBY_H2V1,  /* CrYCbY interleave */
+	MDP_IMGTYPE_LIMIT1 = MDP_IMGTYPE_END,
 	MDP_FB_FORMAT = MDP_IMGTYPE2_START,    /* framebuffer format */
 	MDP_IMGTYPE_LIMIT2 /* Non valid image type after this enum */
 };
+
+#define MDP_CRYCBY_H2V1 MDP_CRYCBY_H2V1
 
 enum {
 	PMEM_IMG,
@@ -311,7 +343,7 @@ struct mdp_csc {
  * to include
  */
 
-#define MDP_BLIT_REQ_VERSION 2
+#define MDP_BLIT_REQ_VERSION 3
 
 struct color {
 	uint32_t r;
@@ -331,6 +363,7 @@ struct mdp_blit_req {
 	uint32_t flags;
 	int sharpening_strength;  /* -127 <--> 127, default 64 */
 	uint8_t color_space;
+	uint32_t fps;
 };
 
 struct mdp_blit_req_list {
@@ -914,6 +947,7 @@ struct mdp_ar_gc_lut_data {
 	uint32_t offset;
 };
 
+#define MDP_PP_PGC_ROUNDING_ENABLE 0x10
 struct mdp_pgc_lut_data {
 	uint32_t version;
 	uint32_t block;
@@ -970,10 +1004,15 @@ struct mdp_pa_cfg_data {
 	struct mdp_pa_cfg pa_data;
 };
 
+#define MDP_DITHER_DATA_V1_7_SZ 16
+
 struct mdp_dither_data_v1_7 {
 	uint32_t g_y_depth;
 	uint32_t r_cr_depth;
 	uint32_t b_cb_depth;
+	uint32_t len;
+	uint32_t data[MDP_DITHER_DATA_V1_7_SZ];
+	uint32_t temporal_en;
 };
 
 struct mdp_dither_cfg_data {
@@ -1235,48 +1274,6 @@ struct msmfb_metadata {
 		uint8_t secure_en;
 		int fbmem_ionfd;
 	} data;
-};
-
-#define EFFECT_COUNT 16
-#define MODE_COUNT  8
-#define NAME_SIZE 16
-
-typedef enum {
-	GET_EFFECT_NUM = 1,
-	GET_EFFECT_LEVEL,
-	GET_EFFECT,
-	GET_MODE_NUM,
-	GET_MODE,
-	SET_EFFECT,
-	SET_MODE,
-	SET_BL_LEVEL,
-	GET_BL_LEVEL,
-} ctrl_id;
-
-struct hal_lcd_effect {
-	char name[NAME_SIZE];
-	int max_level;
-	int level;
-};
-
-struct hal_lcd_mode {
-	char name[NAME_SIZE];
-};
-
-struct hal_panel_data {
-	struct hal_lcd_effect effect[EFFECT_COUNT];
-	struct hal_lcd_mode mode[MODE_COUNT];
-	int effect_cnt;
-	int mode_cnt;
-	int current_mode;
-};
-
-struct hal_panel_ctrl_data {
-	struct hal_panel_data panel_data;
-	int level;
-	int mode;
-	int index;
-	ctrl_id id;
 };
 
 #define MDP_MAX_FENCE_FD	32
