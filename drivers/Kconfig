@@ -156,8 +156,6 @@ source "drivers/remoteproc/Kconfig"
 
 source "drivers/rpmsg/Kconfig"
 
-source "drivers/soc/Kconfig"
-
 source "drivers/devfreq/Kconfig"
 
 source "drivers/extcon/Kconfig"
@@ -201,5 +199,4 @@ source "drivers/bif/Kconfig"
 source "drivers/gud/Kconfig"
 
 source "drivers/fingerprint/goodix/Kconfig"
-
 endmenu
