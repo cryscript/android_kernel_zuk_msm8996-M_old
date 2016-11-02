@@ -595,13 +595,29 @@ int hdmi_get_video_id_code(struct msm_hdmi_mode_timing_info *timing_in,
 		break;
 	}
 
-	if (vic < 0)
+	if (vic < 0) {
+		for (i = 0; i < HDMI_VFRMT_MAX; i++) {
+			ret = hdmi_get_supported_mode(&supported_timing,
+				ds_data, i);
+			if (ret || !supported_timing.supported)
+				continue;
+			if (timing_in->active_h != supported_timing.active_h)
+				continue;
+			if (timing_in->active_v != supported_timing.active_v)
+				continue;
+			vic = (int)supported_timing.video_format;
+			break;
+		}
+	}
+
+	if (vic < 0) {
 		pr_err("timing is not supported h=%d v=%d\n",
 			timing_in->active_h, timing_in->active_v);
-	else
-		pr_debug("vic = %d timing = %s\n", vic,
-			msm_hdmi_mode_2string((u32)vic));
+	}
+
 exit:
+	pr_debug("vic = %d timing = %s\n", vic,
+		msm_hdmi_mode_2string((u32)vic));
 
 	return vic;
 } /* hdmi_get_video_id_code */
@@ -709,9 +725,10 @@ static void hdmi_ddc_trigger(struct hdmi_tx_ddc_ctrl *ddc_ctrl,
 	DSS_REG_W_ND(io, HDMI_DDC_CTRL, ddc_ctrl_reg_val);
 }
 
-static void hdmi_ddc_clear_status(struct hdmi_tx_ddc_ctrl *ddc_ctrl)
+static int hdmi_ddc_check_status(struct hdmi_tx_ddc_ctrl *ddc_ctrl)
 {
 	u32 reg_val;
+	int rc = 0;
 
 	/* Read DDC status */
 	reg_val = DSS_REG_R(ddc_ctrl->io, HDMI_DDC_SW_STATUS);
@@ -726,14 +743,18 @@ static void hdmi_ddc_clear_status(struct hdmi_tx_ddc_ctrl *ddc_ctrl)
 		reg_val = BIT(3) | BIT(1);
 
 		DSS_REG_W_ND(ddc_ctrl->io, HDMI_DDC_CTRL, reg_val);
+
+		rc = -ECOMM;
 	}
+
+	return rc;
 }
 
 static int hdmi_ddc_read_retry(struct hdmi_tx_ddc_ctrl *ddc_ctrl)
 {
 	u32 reg_val, ndx, time_out_count, wait_time;
 	struct hdmi_tx_ddc_data *ddc_data;
-	int status;
+	int status, rc;
 	int busy_wait_us;
 
 	if (!ddc_ctrl || !ddc_ctrl->io) {
@@ -802,7 +823,10 @@ static int hdmi_ddc_read_retry(struct hdmi_tx_ddc_ctrl *ddc_ctrl)
 			status = -ETIMEDOUT;
 		}
 
-		hdmi_ddc_clear_status(ddc_ctrl);
+		rc = hdmi_ddc_check_status(ddc_ctrl);
+
+		if (!status)
+			status = rc;
 	} while (status && ddc_data->retry--);
 
 	if (status)
@@ -1141,7 +1165,7 @@ int hdmi_ddc_read(struct hdmi_tx_ddc_ctrl *ddc_ctrl)
 
 int hdmi_ddc_read_seg(struct hdmi_tx_ddc_ctrl *ddc_ctrl)
 {
-	int status;
+	int status, rc;
 	u32 reg_val, ndx, time_out_count;
 	struct hdmi_tx_ddc_data *ddc_data;
 
@@ -1182,7 +1206,10 @@ int hdmi_ddc_read_seg(struct hdmi_tx_ddc_ctrl *ddc_ctrl)
 			status = -ETIMEDOUT;
 		}
 
-		hdmi_ddc_clear_status(ddc_ctrl);
+		rc = hdmi_ddc_check_status(ddc_ctrl);
+
+		if (!status)
+			status = rc;
 	} while (status && ddc_data->retry--);
 
 	if (status)
@@ -1208,7 +1235,7 @@ error:
 
 int hdmi_ddc_write(struct hdmi_tx_ddc_ctrl *ddc_ctrl)
 {
-	int status;
+	int status, rc;
 	u32 time_out_count;
 	struct hdmi_tx_ddc_data *ddc_data;
 	u32 wait_time;
@@ -1280,7 +1307,10 @@ int hdmi_ddc_write(struct hdmi_tx_ddc_ctrl *ddc_ctrl)
 			status = -ETIMEDOUT;
 		}
 
-		hdmi_ddc_clear_status(ddc_ctrl);
+		rc = hdmi_ddc_check_status(ddc_ctrl);
+
+		if (!status)
+			status = rc;
 	} while (status && ddc_data->retry--);
 
 	if (status)
